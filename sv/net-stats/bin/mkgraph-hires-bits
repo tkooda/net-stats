@@ -1,0 +1,126 @@
+#!/bin/bash
+
+## tkooda : 2007-07-17 : origional from: http://trac.lighttpd.net/trac/wiki/Docs%3AModRRDTool
+
+RRDTOOL=/usr/bin/rrdtool
+OUTDIR=/var/www/servers/.default/rrd/traffic
+INDIR=/etc/sv/net-stats/root
+WIDTH=800
+HEIGHT=400
+
+## tkooda : 2013-08-09 : use devices instead of IPs?
+#ips="`ip ro |awk '{if($2=="dev")print $1}' |cut -d '/' -f1`"
+devs="`/bin/ls /sys/class/net/ |xargs echo`"
+periods="hour hours day week month thismonth year"
+
+if [ -n "${1}" ]; then
+## tkooda : 2013-08-09 : 
+##  ips="${1}"
+  devs="${1}"
+  shift
+fi
+
+if [ -n "$*" ]; then
+  periods="$*"
+fi
+
+## tkooda : 2013-08-09 : 
+##echo "ips: $ips"
+echo "devs: $devs"
+echo "periods: $periods"
+
+d="`date -I` `date +%H:%M`"
+## tkooda : 2013-08-09 : 
+#for ip in ${ips}; do
+for dev in ${devs}; do
+  f="${INDIR}/${dev}.rrd"
+  if [ ! -f "${f}" ]; then
+    echo "SKIPPING missing: ${f}"
+    continue
+  fi
+  for period in ${periods}; do
+## tkooda : 2013-08-09 : 
+##    f="${INDIR}/${ip}.rrd"
+    case "${period}" in
+	hour)
+	    seconds="3600"
+	    ;;
+	hours)
+	    seconds="21600"
+	    ;;
+	day)
+	    seconds="86400"
+	    ;;
+	week)
+	    seconds="604800"
+	    ;;
+	month)
+	    seconds="2592000"
+	    ;;
+	thismonth) # month to date
+	    # number of seconds so far this month..
+	    seconds="$(( $( date +%s ) - $( date -d`date +%Y-%m-01` +%s ) ))"
+	    ;;
+	year)
+	    seconds="31536000"
+	    ;;
+	*)
+	    echo "ERROR: invalid time period: ${period}"
+	    continue
+    esac
+    
+## tkooda : 2013-08-09 : 
+##    echo -n "graph: ${ip} ${period} "
+    echo -n "graph: ${dev} ${period} "
+## tkooda : 2008-03-14 : note: rx/tx inverted for XEN server iface usage
+## tkooda : 2013-08-09 : 
+##    rrdtool graph "$OUTDIR/${ip}-traffic-${period}.png" \
+##	--title "Past ${period} of network traffic for ${ip} (${d})" \
+    rrdtool graph "$OUTDIR/${dev}-traffic-${period}.png" \
+	--title "Past ${period} of network traffic for ${dev} (${d})" \
+	-v "bits/s" -a PNG --slope-mode --interlaced --alt-autoscale \
+	--start "-${seconds}" -w "${WIDTH}" -h "${HEIGHT}" \
+          "DEF:rx_bytes_raw=${f}:tx:AVERAGE" \
+          "DEF:tx_bytes_raw=${f}:rx:AVERAGE" \
+          \
+          "CDEF:rx_bytes=rx_bytes_raw,UN,0,rx_bytes_raw,IF" \
+          "CDEF:tx_bytes=tx_bytes_raw,UN,0,tx_bytes_raw,IF" \
+          \
+          "CDEF:rx_bits_raw=rx_bytes,8,*" \
+          "CDEF:tx_bits_raw=tx_bytes,8,*" \
+          "CDEF:rx_bits=rx_bits_raw,UN,0,rx_bits_raw,IF" \
+          "CDEF:tx_bits=tx_bits_raw,UN,0,tx_bits_raw,IF" \
+          "CDEF:rx_bits_neg=rx_bits,-1,*" \
+          \
+          "CDEF:io_bits=rx_bits,tx_bits,+" \
+          "CDEF:io_bytes=io_bits,8,/" \
+          "VDEF:io_bits_95=io_bits,95,PERCENT" \
+          \
+          "VDEF:rx_bits_95=rx_bits,95,PERCENT" \
+          "VDEF:tx_bits_95=tx_bits,95,PERCENT" \
+          "VDEF:rx_bits_95_neg=rx_bits_neg,5,PERCENT" \
+          \
+          "VDEF:rx_bytes_total=rx_bytes,TOTAL" \
+          "VDEF:tx_bytes_total=tx_bytes,TOTAL" \
+          "VDEF:io_bits_total=io_bits,TOTAL" \
+          "VDEF:io_bytes_total=io_bytes,TOTAL" \
+          \
+          "AREA:tx_bits#0000ff:out\t" \
+          "LINE2:tx_bits_95#00ffff:95th out\:" \
+          "GPRINT:tx_bits_95:%7.2lf%s\t" \
+          "GPRINT:tx_bytes_total:Total bytes out\:%5.1lf%s\n" \
+          \
+          "AREA:rx_bits_neg#00ff00:in \t" \
+          "LINE1:rx_bits_95_neg#ff00ff:95th in\: " \
+          "GPRINT:rx_bits_95:%7.2lf%s\t" \
+          "GPRINT:rx_bytes_total:Total bytes in\: %5.1lf%s\n" \
+          \
+          "GPRINT:io_bytes_total:Total out+in bytes\:%5.1lf%s"
+## tkooda : 2011-11-06 : from right before the last "GPRINT" line right above here
+##          "LINE2:io_bits#ff0000:sum\t" \
+##          "LINE1:io_bits_95#000000:95th sum\:" \
+##          "GPRINT:io_bits_95:%7.2lf%s\t" \
+    
+  done
+done
+

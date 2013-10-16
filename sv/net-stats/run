@@ -1,0 +1,5 @@
+#!/bin/sh
+exec chpst -e ./env/ sh -c '
+  exec chpst -u ${USER} -n 18 -m ${MEMORY} \
+    ./bin/net-stats
+'

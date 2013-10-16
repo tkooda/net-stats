@@ -1,0 +1,3 @@
+#!/bin/sh
+exec chpst -u webadmin:webadmin -m 67108864 \
+  rrdtool -

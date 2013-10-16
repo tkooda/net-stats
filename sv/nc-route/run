@@ -1,0 +1,4 @@
+#!/bin/sh
+exec chpst -u nobody -n 18 -m 4194304 \
+  tcpsvd -l0 -E 127.0.0.1 1428 \
+    ip route list
