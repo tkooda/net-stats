@@ -30,10 +30,14 @@ def get_stats( host, dev_ignore_prefixes ):
 			
 			if dev.startswith( "lo" ):
 				continue
-
+			
+			skip_dev = False
 			for prefix in dev_ignore_prefixes.split():
 				if dev.startswith( prefix ):
-					continue
+					skip_dev = True
+			
+			if skip_dev:
+				continue
 			
 			if not dev in stats:
 				stats[ dev ] = {}
