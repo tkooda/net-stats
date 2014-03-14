@@ -27,7 +27,10 @@ def get_stats( host, prefix ):
 	for line in data_stats.split( "\n" ):
 		try:
 			dev, txrx, bytes = pattern.match( line ).groups()
-
+			
+			if dev.startswith( "lo" ):
+				continue
+			
 			if prefix:
 				prefix_match = False
 				for p in prefix.split():
