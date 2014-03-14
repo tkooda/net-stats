@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-## tkooda : 2012-10-23 : possibly rebuild some png files before printing HTML that references
+## tkooda : 2012-10-23 : possibly rebuild some png files before printing HTML that references them
 
 import os
 import sys
@@ -24,7 +24,7 @@ print """\
 HTTP/1.0 200 OK
 Content-type: text/html
 
-The Blue graph are the users streaming/downloading from my server, it maxes out at ~5-7 Mbit/s so if it's around/above that you might notice slow video, the Green graph (grows downward) is the server fetching new videos.<br/>
+The Blue graph shows traffic leaving the interface (from the interface's point of view), the Green graph (grows downward) shows traffic entering the interface.<br/>
 <br/>
 """
 
