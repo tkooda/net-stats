@@ -1,57 +1,20 @@
 #!/usr/bin/python
 
-## tkooda : 2007-10-22 : poll vm parent for net stats into rrd dbs
+## tkooda : 2007-10-22 : poll remote machine for network stats and save into RRD DBs
 
 import sys
 import socket
 import time
 import os
 import subprocess
+import re
 
 
-# set defaults ..
-settings = {
-	"HOST" : "127.0.0.1",
-	"PORT_ROUTE" : 1428,
-	"PORT_STATS" : 1429,
-	"DOCROOT" : "/etc/sv/net-stats/root",
-	"PREFIX" : "eth",
-}
 
-
-def get_routes( prefix ):
-	try:
-		sock_route = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
-		sock_route.connect( ( settings[ "HOST" ], int( settings[ "PORT_ROUTE" ] ) ) )
-		data_route = sock_route.recv( 4096 )
-		sock_route.close()
-	except:
-		import traceback
-		traceback.print_exc( file=sys.stderr )
-		sys.stderr.flush()
-		sys.exit( 2 )
-	route = {}
-	route_default = False
-	for line in data_route.split( "\n" ):
-		if len( line ) < 2:
-			continue
-		line = line.rstrip()
-		print >>sys.stderr, "DEBUGx: line: '%s'" % line
-		items = line.split()
-		if len( items ) < 3:
-			print >>sys.stderr, "DEBUG: items < 3:", items
-			continue
-		if items[0] == "default":
-			route_default = items[4]
-		elif items[1] == "dev" and items[2][ : len( prefix ) ] == prefix:
-			route[ items[2] ] = items[0].split( "/" )[0]
-	return ( route_default, route )
-
-
-def get_stats( prefix ):
+def get_stats( host, prefix ):
 	try:
 		sock_stats = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
-		sock_stats.connect( ( settings[ "HOST" ], int( settings[ "PORT_STATS" ] ) ) )
+		sock_stats.connect( ( host, int( settings[ "PORT" ] ) ) )
 		data_stats = sock_stats.recv( 4096 )
 		sock_stats.close()
 	except:
@@ -59,26 +22,34 @@ def get_stats( prefix ):
 		traceback.print_exc( file=sys.stderr )
 		sys.stderr.flush()
 		sys.exit( 3 )
+	
 	stats = {}
 	for line in data_stats.split( "\n" ):
-		p1 = line.split( ":" )
-		if len( p1 ) != 2:
-			continue
-		p2 = p1[0].split( "/" )
-		if len( p2 ) != 7:
-			continue
-		if  p2[4][ : len( prefix ) ] != prefix:
-			continue
-		if not p2[4] in stats:
-			stats[ p2[4] ] = {} # dev
-		if not p2[6] in stats:
-			stats[ p2[4] ][ p2[6][ :2 ] ] = {} # tx/rx
-		stats[ p2[4] ][ p2[6][ :2 ] ] = p1[1] # bytes
+		try:
+			dev, txrx, bytes = pattern.match( line ).groups()
+
+			if prefix:
+				prefix_match = False
+				for p in prefix.split():
+					if dev.startswith( prefix ):
+						prefix_match = True
+				
+				if not prefix_match:
+					continue
+			
+			if not dev in stats:
+				stats[ dev ] = {}
+			
+			stats[ dev ][ txrx ] = bytes
+		except:
+			pass # e.g. end of input
+	
 	return stats
 
 
-def do_create_rrd( f ):
-	if os.path.isfile( f ):
+
+def do_create_rrd( path_file ):
+	if os.path.isfile( path_file ):
 		return True
 # note: create rrd to hold (up to 100Mbit/s) max bytes transfered in 1 minute
 # math: (100 * 1024 * 1024 / 8 * 60) = 786432000 bytes in 1min @ 100Mbit/s
@@ -87,45 +58,50 @@ def do_create_rrd( f ):
 # 12960 samples every  5 minutes  (covers 1.5 months; for 95th% @ 5min)
 #   534 samples every  1 day      (covers 1.5 year)
 # result: data.rrd is only 214K
-	cmd = [ "/usr/bin/rrdtool", "create", f, "--step", "60",
+	cmd = [ "/usr/bin/rrdtool", "create", path_file, "--step", "60",
 		"DS:rx:COUNTER:120:0:786432000",
 		"DS:tx:COUNTER:120:0:786432000",
 		"RRA:AVERAGE:0.5:1:900",
 		"RRA:AVERAGE:0.5:5:12960",
 		"RRA:AVERAGE:0.5:1440:534",
 		]
-#	print "cmd:", cmd
 	subprocess.call( cmd )
-	return False
+	return False # no error
 
 
-# optionally override defaults ..
+
+
+# set defaults ..
+settings = {
+	"HOSTS" : "127.0.0.1",
+	"PORT"  : 1429,
+	"DOCROOT" : "/etc/sv/net-stats/root",
+	"PREFIX" : "",
+}
+
+pattern = re.compile(  "^/sys/class/net/([^/]+)/statistics/(.*)_bytes:(\d+)$" )
+
+## optionally override defaults ..
 for s in settings.keys():
 	e = os.getenv( s )
-	if e:   
+	if e:
 		settings[ s ] = e
 
-# loop ..
-routes = {}
+
+## main() loop ..
 while True:
-	for dev, ios in get_stats( settings[ "PREFIX" ] ).items():
-		if len( ios ) != 2:
-			print >>sys.stderr, "ERROR: incomplete rx/tx:", dev, ios
-			continue
-## tkooda : 2013-08-09 : why do we care about routes??
-#		if dev not in routes: # auto-add new devs/routes
-#			route_default, routes = get_routes( settings[ "PREFIX" ] )
-#			if dev not in routes:
-#				print >>sys.stderr, "ERROR: missing route for dev: %s" % dev
-#				print >>sys.stderr, "DEBUG: default:", route_default
-#				print >>sys.stderr, "DEBUG: routes:", routes
-#				sys.stderr.flush()
-#				continue
-#		f = os.path.join( settings[ "DOCROOT" ], "%s.rrd" % routes[ dev ] )
-		f = os.path.join( settings[ "DOCROOT" ], "%s.rrd" % dev )
-		if not os.path.isfile( f ):
-			if not do_create_rrd( f ):
+	for host in settings[ "HOSTS" ].split(" "):
+		for dev, ios in get_stats( host, settings[ "PREFIX" ] ).items():
+			if len( ios ) != 2:
+				print >>sys.stderr, "ERROR: incomplete rx/tx:", dev, ios
 				continue
-		print "update %s N:%s:%s" % ( f, ios[ "tx" ], ios[ "rx" ] )
-	sys.stdout.flush()
-	time.sleep( 60 )
+			path_dir = os.path.join( settings[ "DOCROOT" ], host )
+			if not os.path.isdir( path_dir ):
+				os.makedirs( path_dir )
+			path_file = os.path.join( path_dir, "%s.rrd" % dev )
+			if not os.path.isfile( path_file ):
+				if not do_create_rrd( path_file ):
+					continue
+			print "update %s N:%s:%s" % ( path_file, ios[ "tx" ], ios[ "rx" ] )
+		sys.stdout.flush()
+	time.sleep( 6 )
