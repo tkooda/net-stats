@@ -1,6 +1,6 @@
 #!/bin/sh
 exec chpst -e ./env/ sh -c '
-  exec chpst -u nobody -n 18 -m ${MEMORY} \
-    tcpsvd -l0 -E ${HOST} ${PORT_STATS} \
+  exec chpst -u nobody -n 18 -m ${MEMORY:-16777216} \
+    tcpsvd -l0 -E ${HOST:-127.0.0.1} ${PORT:-1429} \
       sh -c "grep ^ /sys/class/net/*/statistics/?x_bytes"
 '
