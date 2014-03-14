@@ -93,7 +93,7 @@ for s in settings.keys():
 
 ## main() loop ..
 while True:
-	for host in settings[ "HOSTS" ].split(" "):
+	for host in settings[ "HOSTS" ].split():
 		for dev, ios in get_stats( host, settings[ "PREFIX" ] ).items():
 			if len( ios ) != 2:
 				print >>sys.stderr, "ERROR: incomplete rx/tx:", dev, ios
@@ -107,4 +107,5 @@ while True:
 					continue
 			print "update %s N:%s:%s" % ( path_file, ios[ "tx" ], ios[ "rx" ] )
 		sys.stdout.flush()
-	time.sleep( 6 )
+	time.sleep( 60 )
+
