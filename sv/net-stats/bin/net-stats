@@ -11,7 +11,7 @@ import re
 
 
 
-def get_stats( host, prefix ):
+def get_stats( host, dev_ignore_prefixes ):
 	try:
 		sock_stats = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
 		sock_stats.connect( ( host, int( settings[ "PORT" ] ) ) )
@@ -30,14 +30,9 @@ def get_stats( host, prefix ):
 			
 			if dev.startswith( "lo" ):
 				continue
-			
-			if prefix:
-				prefix_match = False
-				for p in prefix.split():
-					if dev.startswith( prefix ):
-						prefix_match = True
-				
-				if not prefix_match:
+
+			for prefix in dev_ignore_prefixes.split():
+				if dev.startswith( prefix ):
 					continue
 			
 			if not dev in stats:
@@ -79,7 +74,7 @@ settings = {
 	"HOSTS" : "127.0.0.1",
 	"PORT"  : 1429,
 	"DOCROOT" : "/etc/sv/net-stats/root",
-	"PREFIX" : "",
+	"DEV_IGNORE_PREFIXES" : "",
 }
 
 pattern = re.compile(  "^/sys/class/net/([^/]+)/statistics/(.*)_bytes:(\d+)$" )
@@ -94,7 +89,7 @@ for s in settings.keys():
 ## main() loop ..
 while True:
 	for host in settings[ "HOSTS" ].split():
-		for dev, ios in get_stats( host, settings[ "PREFIX" ] ).items():
+		for dev, ios in get_stats( host, settings[ "DEV_IGNORE_PREFIXES" ] ).items():
 			if len( ios ) != 2:
 				print >>sys.stderr, "ERROR: incomplete rx/tx:", dev, ios
 				continue
