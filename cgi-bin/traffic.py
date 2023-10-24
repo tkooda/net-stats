@@ -43,9 +43,9 @@ Content-type: text/html
 
 <html>
 <body>
-The Blue graph shows traffic leaving the interface (from the interface's point of view), the Green graph (grows downward) shows traffic entering the {} interface.<br/>
+The Blue graph shows traffic leaving the {} interface (from the interface's point of view), the Green graph (grows downward) shows traffic entering the {} interface.<br/>
 <br/>
-""".format( iface )  )
+""".format( iface, iface )  )
 
 for period_name, period_min in PERIODS:
     fname = "%s-traffic-%s.png" % ( iface, period_name )
