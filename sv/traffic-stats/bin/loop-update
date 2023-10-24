@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if [ -n "${IFACES}" ]; then
+if [ -z "${IFACES}" ]; then
 	IFACES=`/bin/ls -1 /sys/class/net |grep -v '^lo$'`
 fi
 	
