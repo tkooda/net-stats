@@ -1,23 +1,37 @@
 #!/bin/bash
 
+## usage: make-graphs [iface [periods..]]
+
 PATH_GRAPHS=/var/www/html/rrd/image/
-PATH_RRD=/etc/sv/traffic-stats/data/eth0.rrd
+PATH_RRD_DIR=/etc/sv/traffic-stats/data
 
 WIDTH=800
 HEIGHT=400
 
+
+## determine iface(s)..
+if [ -n "${1}" ]; then
+	IFACES="${1}"
+	shift
+else
+	IFACES=`/bin/ls -1 /sys/class/net |grep -v '^lo$'`
+fi
+echo "ifaces: $IFACES"
+
+
+## determine period(s)..
 periods="hour hours day week month thismonth year"
 
 if [ -n "$*" ]; then
   periods="$*"
 fi
-
 echo "periods: $periods"
+
 
 now="`date -I` `date +%H:%M`"
 
 for period in ${periods}; do
-
+	
 	case "${period}" in
 		hour)
 			seconds="3600"
@@ -45,48 +59,51 @@ for period in ${periods}; do
 			echo "ERROR: invalid time period: ${period}"
 			continue
 	esac
-
+	
 	echo -n "$period "
-	rrdtool graph "${PATH_GRAPHS}/eth0-traffic-${period}.png" \
-		--title "Past ${period} of network traffic for eth0 (${now})" \
-		-v "bits/s" -a PNG --slope-mode --interlaced --alt-autoscale \
-		--start "-${seconds}" -w "${WIDTH}" -h "${HEIGHT}" \
-		"DEF:rx_bytes_raw=${PATH_RRD}:tx:AVERAGE" \
-		"DEF:tx_bytes_raw=${PATH_RRD}:rx:AVERAGE" \
-		\
-		"CDEF:rx_bytes=rx_bytes_raw,UN,0,rx_bytes_raw,IF" \
-		"CDEF:tx_bytes=tx_bytes_raw,UN,0,tx_bytes_raw,IF" \
-		\
-		"CDEF:rx_bits_raw=rx_bytes,8,*" \
-		"CDEF:tx_bits_raw=tx_bytes,8,*" \
-		"CDEF:rx_bits=rx_bits_raw,UN,0,rx_bits_raw,IF" \
-		"CDEF:tx_bits=tx_bits_raw,UN,0,tx_bits_raw,IF" \
-		"CDEF:rx_bits_neg=rx_bits,-1,*" \
-		\
-		"CDEF:io_bits=rx_bits,tx_bits,+" \
-		"CDEF:io_bytes=io_bits,8,/" \
-		"VDEF:io_bits_95=io_bits,95,PERCENT" \
-		\
-		"VDEF:rx_bits_95=rx_bits,95,PERCENT" \
-		"VDEF:tx_bits_95=tx_bits,95,PERCENT" \
-		"VDEF:rx_bits_95_neg=rx_bits_neg,5,PERCENT" \
-		\
-		"VDEF:rx_bytes_total=rx_bytes,TOTAL" \
-		"VDEF:tx_bytes_total=tx_bytes,TOTAL" \
-		"VDEF:io_bits_total=io_bits,TOTAL" \
-		"VDEF:io_bytes_total=io_bytes,TOTAL" \
-		\
-		"AREA:tx_bits#0000ff:out\t" \
-		"LINE2:tx_bits_95#00ffff:95th out\:" \
-		"GPRINT:tx_bits_95:%7.2lf%s\t" \
-		"GPRINT:tx_bytes_total:Total bytes out\:%5.1lf%s\n" \
-		\
-		"AREA:rx_bits_neg#00ff00:in \t" \
-		"LINE1:rx_bits_95_neg#ff00ff:95th in\: " \
-		"GPRINT:rx_bits_95:%7.2lf%s\t" \
-		"GPRINT:rx_bytes_total:Total bytes in\: %5.1lf%s\n" \
-		\
-		"GPRINT:io_bytes_total:Total out+in bytes\:%5.1lf%s"
+	for iface in ${IFACES}; do
+		PATH_RRD="${PATH_RRD_DIR}/${iface}.rrd"
+		rrdtool graph "${PATH_GRAPHS}/${iface}-traffic-${period}.png" \
+				--title "Past ${period} of network traffic for ${iface} (${now})" \
+				-v "bits/s" -a PNG --slope-mode --interlaced --alt-autoscale \
+				--start "-${seconds}" -w "${WIDTH}" -h "${HEIGHT}" \
+				"DEF:rx_bytes_raw=${PATH_RRD}:tx:AVERAGE" \
+				"DEF:tx_bytes_raw=${PATH_RRD}:rx:AVERAGE" \
+				\
+				"CDEF:rx_bytes=rx_bytes_raw,UN,0,rx_bytes_raw,IF" \
+				"CDEF:tx_bytes=tx_bytes_raw,UN,0,tx_bytes_raw,IF" \
+				\
+				"CDEF:rx_bits_raw=rx_bytes,8,*" \
+				"CDEF:tx_bits_raw=tx_bytes,8,*" \
+				"CDEF:rx_bits=rx_bits_raw,UN,0,rx_bits_raw,IF" \
+				"CDEF:tx_bits=tx_bits_raw,UN,0,tx_bits_raw,IF" \
+				"CDEF:rx_bits_neg=rx_bits,-1,*" \
+				\
+				"CDEF:io_bits=rx_bits,tx_bits,+" \
+				"CDEF:io_bytes=io_bits,8,/" \
+				"VDEF:io_bits_95=io_bits,95,PERCENT" \
+				\
+				"VDEF:rx_bits_95=rx_bits,95,PERCENT" \
+				"VDEF:tx_bits_95=tx_bits,95,PERCENT" \
+				"VDEF:rx_bits_95_neg=rx_bits_neg,5,PERCENT" \
+				\
+				"VDEF:rx_bytes_total=rx_bytes,TOTAL" \
+				"VDEF:tx_bytes_total=tx_bytes,TOTAL" \
+				"VDEF:io_bits_total=io_bits,TOTAL" \
+				"VDEF:io_bytes_total=io_bytes,TOTAL" \
+				\
+				"AREA:tx_bits#0000ff:out\t" \
+				"LINE2:tx_bits_95#00ffff:95th out\:" \
+				"GPRINT:tx_bits_95:%7.2lf%s\t" \
+				"GPRINT:tx_bytes_total:Total bytes out\:%5.1lf%s\n" \
+				\
+				"AREA:rx_bits_neg#00ff00:in \t" \
+				"LINE1:rx_bits_95_neg#ff00ff:95th in\: " \
+				"GPRINT:rx_bits_95:%7.2lf%s\t" \
+				"GPRINT:rx_bytes_total:Total bytes in\: %5.1lf%s\n" \
+				\
+				"GPRINT:io_bytes_total:Total out+in bytes\:%5.1lf%s"
+	done
 	
 done
 

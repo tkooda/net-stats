@@ -1,19 +1,27 @@
 #!/bin/bash
 
-PATH_RRD="/etc/sv/traffic-stats/data/eth0.rrd"
+IFACES=`/bin/ls -1 /sys/class/net |grep -v '^lo$'`
 
-if [ ! -f "${PATH_RRD}" ]; then
-	/usr/bin/rrdtool create "${PATH_RRD}" \
-					 --step 60 \
-					 DS:rx:COUNTER:120:0:786432000 \
-					 DS:tx:COUNTER:120:0:786432000 \
-					 RRA:AVERAGE:0.5:1:900 \
-					 RRA:AVERAGE:0.5:5:12960 \
-					 RRA:AVERAGE:0.5:1440:534
-	chmod 644 "${PATH_RRD}"
-fi
+for iface in ${IFACES}; do
+
+	PATH_RRD="/etc/sv/traffic-stats/data/${iface}.rrd"
+
+	if [ ! -f "${PATH_RRD}" ]; then
+		/usr/bin/rrdtool create "${PATH_RRD}" \
+						 --step 60 \
+						 DS:rx:COUNTER:120:0:786432000 \
+						 DS:tx:COUNTER:120:0:786432000 \
+						 RRA:AVERAGE:0.5:1:900 \
+						 RRA:AVERAGE:0.5:5:12960 \
+						 RRA:AVERAGE:0.5:1440:534
+		chmod 644 "${PATH_RRD}"
+	fi
+done
 
 while sleep 60; do
-	echo "update ${PATH_RRD} N:$(</sys/class/net/eth0/statistics/tx_bytes):$(</sys/class/net/eth0/statistics/rx_bytes)"
+	for iface in ${IFACES}; do
+		PATH_RRD="/etc/sv/traffic-stats/data/${iface}.rrd"
+		echo "update /etc/sv/traffic-stats/data/${iface}.rrd N:$(</sys/class/net/${iface}/statistics/tx_bytes):$(</sys/class/net/${iface}/statistics/rx_bytes)"
+	done
 done
 
