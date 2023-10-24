@@ -1,7 +1,9 @@
 #!/bin/bash
 
-IFACES=`/bin/ls -1 /sys/class/net |grep -v '^lo$'`
-
+if [ -n "${IFACES}" ]; then
+	IFACES=`/bin/ls -1 /sys/class/net |grep -v '^lo$'`
+fi
+	
 for iface in ${IFACES}; do
 
 	PATH_RRD="/etc/sv/traffic-stats/data/${iface}.rrd"
