@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 ## tkooda : 2012-10-23 : possibly rebuild some png files before printing HTML that references them
 
@@ -7,26 +7,30 @@ import sys
 import time
 import subprocess
 
-DIR_IMG = "/var/www/servers/.default/rrd/traffic"
-URL_BASE = "/rrd/traffic"
+DIR_IMG = "/var/www/html/rrd/image/"
+URL_BASE = "/rrd/image"
 IFACE = "eth0"
 
 # period name and seconds to cache old png ..
-PERIODS = [ ( "hour", 30 ),
-	( "hours", 30 ),
-	( "day", 60 ),
-	( "week", 60 ),
-	( "month", 300 ),
-	( "thismonth", 300 ),
-	( "year", 300 ), ]
+PERIODS = [
+	( "hour", 30 ),
+	( "hours", 300 ),
+	( "day", 3600 ),
+	( "week", 300 ),
+	( "month", 3600 * 4 ),
+	( "thismonth", 3600 * 4 ),
+	( "year", 86400 ),
+	]
 
-print """\
+print( """\
 HTTP/1.0 200 OK
 Content-type: text/html
 
+<html>
+<body>
 The Blue graph shows traffic leaving the interface (from the interface's point of view), the Green graph (grows downward) shows traffic entering the interface.<br/>
 <br/>
-"""
+""" )
 
 for period_name, period_min in PERIODS:
     fname = "%s-traffic-%s.png" % ( IFACE, period_name )
@@ -34,8 +38,11 @@ for period_name, period_min in PERIODS:
     
     if not os.path.exists( fpath ) or \
             os.stat( fpath )[8] + period_min < time.time():
-        subprocess.call( [ "/etc/sv/net-stats/bin/mkgraph-hires-bits",
+        subprocess.call( [ "/etc/sv/traffic-stats/bin/make-graphs",
                            IFACE, period_name ], stdout=open('/dev/null', 'w') )
     
     url = os.path.join( URL_BASE, fname )
-    print """<a name="%s">%s</a> :<br/><img src="%s"><br/><br/><br/>""" % ( period_name, period_name, url )
+    print( """<a name="%s">%s</a> :<br/><img src="%s"><br/><br/><br/>""" % ( period_name, period_name, url ) )
+
+print( """\n</body>\n</html>\n""" )
+

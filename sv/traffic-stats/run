@@ -1,0 +1,5 @@
+#!/bin/sh
+exec 2>&1
+exec chpst -e ./env/ sh -c '
+  exec chpst -u "${USER_DATA}" ./bin/loop-update
+'
